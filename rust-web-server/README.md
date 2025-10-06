@@ -14,3 +14,10 @@
 3. print the request’s first line
 4. send a valid minimal HTTP/1.1 response
 
+>> cargo run 
+>>  curl 127.0.0.1:7878  
+
+>> Step 2 : Request Routing and Response Logic
+
+
+
