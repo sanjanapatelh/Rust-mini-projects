@@ -5,33 +5,52 @@ use std::sync::Mutex;
 
 type job = Box<dyn FnOnce() + Send + 'static>;
 
-struct Worker {
-    id: usize,
-    thread: thread::JoinHandle<()>,
+
+// Enum messgaes sent over channel
+enum Message {
+    NewJob(job),
+    Terminate,
 }
 
+
+struct Worker {
+    id: usize,
+    thread: Option< thread::JoinHandle<()>>,
+}
+
+
+
 impl Worker {
-    fn new(id: usize , receiver:Arc<Mutex<mpsc::Receiver<job>>>) -> Worker {
+    fn new(id: usize , receiver:Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         let thread = thread::spawn( move || loop{
-            // Concurrency Primitives: Arc and Mutex 
-            // 1. receiver.lock(): Acquires the Mutex lock, ensuring exclusive access.
-            // 2. unwrap(): Panics if the thread holding the lock crashed (we keep this for simplicity here).
-            // 3. recv(): Blocks the worker thread until a job is sent down the channel.
-            let job = receiver.lock().unwrap().recv().unwrap();
+            
+            let message = receiver.lock().unwrap().recv().unwrap();
 
-            println!(" Worker {} got a job ; executing, " , id);
+            match message {
+                Message::NewJob(job) => {
+                    
+                    println!("Worker {} got a job; executing.", id );
+                    job();
+                }
 
-            job()
+                // Terminate Signal 
+
+                Message::Terminate => {
+                    println!("Worker {} was told to terminate.", id);
+                    break; // Exists the loop, allowing the thread to finish
+                }
+            }
+           
 
         });
 
-        Worker { id ,thread }
+        Worker { id ,thread: Some(thread) }
     }
 }
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<job>, // send job to the eorkers 
+    sender: mpsc::Sender<Message>, // send job to the eorkers 
 }
 
 impl ThreadPool {
@@ -66,9 +85,40 @@ impl ThreadPool {
             let job = Box::new(f);
 
             // Send the job down the channel.
-            self.sender.send(job).unwrap();
+            self.sender.send(Message::NewJob(job)).unwrap();
         } 
     
 
 
+}
+
+impl Drop for ThreadPool {
+
+    fn drop(&mut self) {
+        println!("Sending terminate messgae to all workers. ");
+
+        for _ in &self.workers {
+
+            self.sender.send(Message::Terminate).unwrap(); // error would only occur if the receiver has already shut down,
+
+        }
+
+        println!("Shutting down all workers.");
+
+        // 2. Iterate through all workers and call join() 
+
+        for worker in &mut self.workers{
+            println!("Shutting down worker {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() { 
+                 // JoinHandle::join(): Blocks the current thread until the target thread (the worker) finishes.
+                thread.join().unwrap();
+            }
+
+        }
+
+
+
+    }
+    
 }

@@ -24,7 +24,7 @@ fn main() {
    println!("Server listening on http://127:0.0.1:7878");
 
 
-   for stream in listener.incoming() {
+   for stream in listener.incoming().take(2) {
     let stream = stream.unwrap(); // unwrap the result 
     
     // 3. Handling the stream 
@@ -34,6 +34,8 @@ fn main() {
     });
 
    }
+
+   println!("Shutting down main server.");
 
 
 }
