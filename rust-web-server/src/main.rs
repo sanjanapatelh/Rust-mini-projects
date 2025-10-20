@@ -2,6 +2,7 @@
 use std::net::{ TcpListener , TcpStream }; // Networking module 
 use std::io::{ self , prelude :: *}  ;
 use std::fs; 
+use rust_web_server::ThreadPool;
 
 
 fn main() {
@@ -18,11 +19,19 @@ fn main() {
    // 2. Loop over incoming connections
    // .incomimg() gives an iterator that yeilds a Result<TcpStram , E> for each connection attemp.
 
+   let pool = ThreadPool::new(4);
+
+   println!("Server listening on http://127:0.0.1:7878");
+
+
    for stream in listener.incoming() {
     let stream = stream.unwrap(); // unwrap the result 
     
     // 3. Handling the stream 
-    handle_connection(stream);
+
+    pool.execute(move || {
+        handle_connection(stream);
+    });
 
    }
 
